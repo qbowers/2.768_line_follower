@@ -98,7 +98,6 @@ void PID_control(float NSL, float NSM, float NSR, int loop_time) {
 
 
 void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
-  
   static float  spd = 144,    //default motor speed
                 steer = 0,     //The control action. This is what the controller changes
                 e = 0,         //This is how wrong we are
@@ -122,7 +121,6 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   int LM_diff = NSL - NSM; // high -> Left darker than Middle -> too far right -> large positive error
   int MR_diff = NSM - NSR; // low -> Right darker than Middle -> too far left -> large negative error
 
-
   //compute error  (error correlated to x-position) (positive error means turn left)
   /*
    o o|o      |    <- large negative error
@@ -130,11 +128,9 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
       | o o o |    <- no error
       |    o o|o   <- positive error
       |      o|o o <- large positive error
-
           .
           .
           .
-
          | |
        o o o        <- small negative error
         o|o|o       <- no error
@@ -151,11 +147,12 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
     right = false;
     e = LR_diff + mid_range_scale*MR_diff;
   } else {
+    //deadzone
     e = 0;
   }
 
   // Steer HARD if all sensors are white
-    
+
   /* if (NSL < white_threshold && NSM < white_threshold && NSR < white_threshold) {
     //all sensors read white
     if (right) {
@@ -168,7 +165,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
       sensorPrint(e, steer, -1);
     }
   } */
- 
+
 
 
   //Take the derivative of error, then put it into a 1st order filter
