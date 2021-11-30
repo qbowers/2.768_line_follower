@@ -99,22 +99,31 @@ void PID_control(float NSL, float NSM, float NSR, int loop_time) {
 
 void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   
-  static float spd = 144,    //default motor speed
-             steer = 0,     //The control action. This is what the controller changes
-             e = 0,         //This is how wrong we are
-             e_prev = e,    //store the error from the last cycle, for derivative calculation
-             e_int = 0,     //integral of the error
-             e_deriv = 0,   //derivative of the error
-             
-             alpha = 0.25,  //filter coefficient (don't worry about it)
+  static float  spd = 144,    //default motor speed
+                steer = 0,     //The control action. This is what the controller changes
+                e = 0,         //This is how wrong we are
+                e_prev = e,    //store the error from the last cycle, for derivative calculation
+                e_int = 0,     //integral of the error
+                e_deriv = 0,   //derivative of the error
 
-             threshold = 7,
-             steer_deadzone = 2,
-             e_int_max = 100000;
+                alpha = 0.25,  //filter coefficient (don't worry about it)
 
-  //compute error
-  //positive error means turn left
-  //(error correlated to x-position)
+                threshold = 7,
+                steer_deadzone = 2,
+                e_int_max = 100000,
+
+                white_threshold = 80,
+  
+                mid_range_scale = 5.0;
+  static bool right = false;
+
+
+  int LR_diff = NSL - NSR; // high -> Left darker than Middle -> too far right -> positive error
+  int LM_diff = NSL - NSM; // high -> Left darker than Middle -> too far right -> large positive error
+  int MR_diff = NSM - NSR; // low -> Right darker than Middle -> too far left -> large negative error
+
+
+  //compute error  (error correlated to x-position) (positive error means turn left)
   /*
    o o|o      |    <- large negative error
      o|o o    |    <- negative error
@@ -133,47 +142,38 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
          | |
   */
 
-  int LR_diff = NSL - NSR;
-  int LM_diff = NSL - NSM; // high -> Left darker than Middle -> too far right -> large positive error
-  int MR_diff = NSM - NSR; // low -> Right darker than Middle -> too far left -> large negative error
-  
-  static bool right = false;
-  static int white_threshold = 80;
-  
-  static float mid_range_scale = 5.0;
-
   if (LR_diff > threshold) {
-    //positive error -> too far right
-    e = LR_diff + mid_range_scale*LM_diff;
+    //too far right -> positive error
     right = true;
+    e = LR_diff + mid_range_scale*LM_diff;
   } else if (LR_diff < -threshold) {
-    //negative error -> too far left
-    e = LR_diff + mid_range_scale*MR_diff;
+    //too far left -> negative error
     right = false;
+    e = LR_diff + mid_range_scale*MR_diff;
   } else {
     e = 0;
   }
 
-  
-  // if (NSL < white_threshold && NSM < white_threshold && NSR < white_threshold) {
-  //   //all sensors read white
-  //   if (right) {
-  //     // drive(-100, 0);
-  //     e = 1000;
-  //     sensorPrint(e, steer, 1);
-  //   } else {
-  //     drive(0, -100);
-  //     e = -1000;
-  //     sensorPrint(e, steer, -1);
-  //   }
-  // }
+  // Steer HARD if all sensors are white
+    
+  /* if (NSL < white_threshold && NSM < white_threshold && NSR < white_threshold) {
+    //all sensors read white
+    if (right) {
+      // drive(-100, 0);
+      e = 1000;
+      sensorPrint(e, steer, 1);
+    } else {
+      drive(0, -100);
+      e = -1000;
+      sensorPrint(e, steer, -1);
+    }
+  } */
  
 
 
   //Take the derivative of error, then put it into a 1st order filter
   e_deriv = alpha*(e - e_prev)/loop_time  + (1-alpha)*e_deriv;
   //integrate the error over time. constrain it to avoid windup
-
   e_int = constrain(e_int + (e * loop_time), -e_int_max, e_int_max); 
 
   //store error for next time
@@ -186,7 +186,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
                 Ki = 0;
 
   //output. constrain to set a max turn radius
-  steer = constrain( Kp*e + Kd*e_deriv + Ki*e_int , -200, 200);
+  steer = constrain( Kp*e + Kd*e_deriv + Ki*e_int , -250, 250);
 
   sensorPrint(e, steer, 0);
 
