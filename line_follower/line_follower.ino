@@ -6,6 +6,8 @@ const int PWMA=11,
           BIN2=6,
           PWMB=5,
 
+          PID_LED=4,
+
           SL=A0,
           SM=A1,
           SR=A2;
@@ -23,6 +25,9 @@ void setup() {
   pinMode(STDBY,OUTPUT);
   digitalWrite(STDBY, HIGH);
 
+  pinMode(PID_LED, OUTPUT);
+  digitalWrite(PID_LED, LOW);
+
   //IR Sensor Setup
   pinMode(SL, INPUT);
   pinMode(SM, INPUT);
@@ -34,7 +39,7 @@ void setup() {
 
 void loop() {
   static float loop_time = 0.1;
-  static int start_time = 0;
+  static int start_time_micros = 0;
   
   //Read and normalize sensor values
   //High value -> darker line under sensor
@@ -43,11 +48,10 @@ void loop() {
   float NSR = map(analogRead(SR),230,400,0.0,100.0);
   
   
-  loop_time = (start_time-micros()) / 1000000.0;
-  start_time = micros();
+  loop_time = (start_time_micros-micros()) / 1000000.0;
+  start_time_micros = micros();
 
   // sensorPrint(NSL, NSM, NSR);
-
 
   PID_center_control(NSL, NSM, NSR, loop_time);
   // bang_control(NSL, NSM, NSR, loop_time);
@@ -98,7 +102,7 @@ void PID_control(float NSL, float NSM, float NSR, int loop_time) {
 
 
 void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
-  static float  spd = 144,    //default motor speed
+  static float  spd = 144,    //default motor speed ---------- max is 255
                 steer = 0,     //The control action. This is what the controller changes
                 e = 0,         //This is how wrong we are
                 e_prev = e,    //store the error from the last cycle, for derivative calculation
@@ -111,13 +115,13 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
                 steer_deadzone = 2,
                 e_int_max = 100000,
 
-                white_threshold = 80,
+                
   
                 mid_range_scale = 5.0;
   static bool right = false;
 
 
-  int LR_diff = NSL - NSR; // high -> Left darker than Middle -> too far right -> positive error
+  int LR_diff = NSL - NSR; // high -> Left darker than Right -> too far right -> positive error
   int LM_diff = NSL - NSM; // high -> Left darker than Middle -> too far right -> large positive error
   int MR_diff = NSM - NSR; // low -> Right darker than Middle -> too far left -> large negative error
 
@@ -152,19 +156,38 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   }
 
   // Steer HARD if all sensors are white
+  static int white_space_number = 0,
+             white_threshold = 80;
+  static float white_time = 0,
+               black_time = 0;
+  static int white_time_threshold = 0.5,
+             black_time_threshold = 0.9;
+  static bool is_white = false;
 
-  /* if (NSL < white_threshold && NSM < white_threshold && NSR < white_threshold) {
-    //all sensors read white
-    if (right) {
-      // drive(-100, 0);
-      e = 1000;
-      sensorPrint(e, steer, 1);
-    } else {
-      drive(0, -100);
-      e = -1000;
-      sensorPrint(e, steer, -1);
+  sensorPrint(white_space_number,0,0);
+  if (NSL < white_threshold && NSM < white_threshold-20 && NSR < white_threshold) {
+    white_time += loop_time;
+    if (white_time > white_time_threshold ) {
+      if (!is_white) {
+        is_white = true;
+        white_space_number += 1;
+      }
     }
-  } */
+  } else {
+    black_time += loop_time;
+    if (black_time >= black_time_threshold) {
+      white_time = 0;
+      is_white = false;
+    }
+  }
+
+  if (is_white && white_space_number <= 5) {
+    digitalWrite(PID_LED, HIGH);
+    drive_white(white_space_number);
+    return;
+  } else {
+    digitalWrite(PID_LED, LOW);
+  }
 
 
 
@@ -179,13 +202,13 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
 
   //controller coefficients
   static float  Kp = 0.7,
-                Kd = 0.5,
+                Kd = 0.7,
                 Ki = 0;
 
   //output. constrain to set a max turn radius
   steer = constrain( Kp*e + Kd*e_deriv + Ki*e_int , -250, 250);
 
-  sensorPrint(e, steer, 0);
+  // sensorPrint(e, steer, 0);
 
   if (steer > 0) {
     drive(spd - steer, spd);
@@ -198,7 +221,38 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   }
 }
 
+void drive_white(int white_space_number) {
+  switch(white_space_number) {
+    case 1: {
+      drive(200,200);
+      break;
+    }
+    case 2: {
+      drive(200,200);
+      break;
+    }
+    case 3: {
+      drive(-100, 200);
+      break;
+    }
+    case 4: {
+      drive(200, -100);
+      break;
+    }
+    case 5: {
+      drive(200,-100);
+      break;
+    }
+  }
 
+  // if (millis() < 30*1000000) {
+  //   drive(200, 200);
+  // } else if (millis() < 40 *1000000) {
+  //   drive(-100, 200);
+  // } else if (millis() < 200* 1000000) {
+  //   drive(200, -100);
+  // }
+}
 
 void bang_control(float NSL, float NSM, float NSR, int loop_time) {
   if (NSR-NSL > 20) {
@@ -210,15 +264,12 @@ void bang_control(float NSL, float NSM, float NSR, int loop_time) {
   }
 }
 
-
-
-
 void sensorPrint(float L, float M, float R) {
-  // Serial.print(L);
-  // Serial.print(" ");
-  // Serial.print(M);
-  // Serial.print(" ");
-  // Serial.println(R);
+  Serial.print(L);
+  Serial.print(" ");
+  Serial.print(M);
+  Serial.print(" ");
+  Serial.println(R);
 }
 
 void motorWrite(int spd, int pin_IN1, int pin_IN2, int pin_PWM) {
@@ -234,7 +285,6 @@ void motorWrite(int spd, int pin_IN1, int pin_IN2, int pin_PWM) {
   }
   analogWrite(pin_PWM, abs(spd));
 }
-
 
 void drive(int speedL, int speedR) {
   motorWrite(speedR, AIN1, AIN2, PWMA);
