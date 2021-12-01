@@ -102,7 +102,7 @@ void PID_control(float NSL, float NSM, float NSR, int loop_time) {
 
 
 void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
-  static float  spd = 144,    //default motor speed ---------- max is 255
+  static float  spd = 255,    //default motor speed ---------- max is 255
                 steer = 0,     //The control action. This is what the controller changes
                 e = 0,         //This is how wrong we are
                 e_prev = e,    //store the error from the last cycle, for derivative calculation
@@ -201,19 +201,19 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
 
 
   //controller coefficients
-  static float  Kp = 0.7,
+  static float  Kp = 0.000037,
                 Kd = 0.7,
-                Ki = 0;
+                Ki = 0.0001;
 
   //output. constrain to set a max turn radius
-  steer = constrain( Kp*e + Kd*e_deriv + Ki*e_int , -250, 250);
+  steer = Kp*e*abs(e)*abs(e) + Kd*e_deriv + Ki*e_int;
 
   // sensorPrint(e, steer, 0);
-
+  int spd_2 = spd - abs(Kp * e)/15.0 - abs(Kd*e_deriv)/10.0;
   if (steer > 0) {
-    drive(spd - steer, spd);
+    drive(spd_2 - steer, spd_2);
   } else {
-    drive(spd, spd + steer);
+    drive(spd_2, spd_2 + steer);
   }
   //dead zone
   if (abs(steer) < steer_deadzone) {
