@@ -155,7 +155,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
     e = 0;
   }
 
-  // Steer HARD if all sensors are white
+  // Do Special Case if all sensors are white
   static int white_space_number = 0,
              white_threshold = 80;
   static float white_time = 0,
@@ -170,6 +170,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
     if (white_time > white_time_threshold ) {
       if (!is_white) {
         is_white = true;
+        black_time = 0;
         white_space_number += 1;
       }
     }
