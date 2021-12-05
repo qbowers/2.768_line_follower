@@ -52,7 +52,7 @@ void loop() {
   start_time_micros = micros();
 
   // sensorPrint(NSL, NSM, NSR);
-
+  // drive_straight();
   PID_center_control(NSL, NSM, NSR, loop_time);
   // bang_control(NSL, NSM, NSR, loop_time);
 
@@ -145,11 +145,13 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   if (LR_diff > threshold) {
     //too far right -> positive error
     right = true;
-    e = LR_diff + mid_range_scale*LM_diff;
+    // e = LR_diff + mid_range_scale*LM_diff;
+    e = LR_diff + LM_diff*abs(LM_diff)/5.0;
   } else if (LR_diff < -threshold) {
     //too far left -> negative error
     right = false;
-    e = LR_diff + mid_range_scale*MR_diff;
+    // e = LR_diff + mid_range_scale*MR_diff;
+    e = LR_diff + MR_diff*abs(MR_diff)/5.0;
   } else {
     //deadzone
     e = 0;
@@ -160,32 +162,35 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
              white_threshold = 80;
   static float white_time = 0,
                black_time = 0;
-  static int white_time_threshold = 0.5,
-             black_time_threshold = 0.9;
+  static float white_time_threshold = 1.2 * 10000000.0/spd,//150.0/spd, //should be lower if we go fast
+               black_time_threshold = 1.0 * 10000000.0/spd;//200.0/spd;
   static bool is_white = false;
 
   sensorPrint(white_space_number,0,0);
   if (NSL < white_threshold && NSM < white_threshold-20 && NSR < white_threshold) {
+    // Read all white
     white_time += loop_time;
-    if (white_time > white_time_threshold ) {
+    black_time = 0;
+    if (white_time >= white_time_threshold ) {
       if (!is_white) {
+        // black_time = 0;
         is_white = true;
-        black_time = 0;
         white_space_number += 1;
       }
     }
   } else {
+    // Did not read all white
     black_time += loop_time;
+    white_time = 0;
     if (black_time >= black_time_threshold) {
-      white_time = 0;
       is_white = false;
+      // white_time = 0;
     }
   }
 
-  if (is_white && white_space_number <= 5) {
+  if (is_white) {
     digitalWrite(PID_LED, HIGH);
-    drive_white(white_space_number);
-    return;
+    if (drive_white(white_space_number)) return;
   } else {
     digitalWrite(PID_LED, LOW);
   }
@@ -202,15 +207,16 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
 
 
   //controller coefficients
-  static float  Kp = 0.000037,
-                Kd = 0.7,
+  static float  Kp = 1.2, //0.000037,
+                Kd = 0.8,//1.2,
                 Ki = 0.0001;
 
-  //output. constrain to set a max turn radius
-  steer = Kp*e*abs(e)*abs(e) + Kd*e_deriv + Ki*e_int;
+  //output
+  // steer = Kp*e*abs(e)*abs(e) + Kd*e_deriv + Ki*e_int;
+  steer = Kp*e + Kd*e_deriv + Ki*e_int; //in the range -500, 500
 
   // sensorPrint(e, steer, 0);
-  int spd_2 = spd - abs(Kp * e)/15.0 - abs(Kd*e_deriv)/10.0;
+  static int spd_2 = spd;
   if (steer > 0) {
     drive(spd_2 - steer, spd_2);
   } else {
@@ -222,37 +228,48 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   }
 }
 
-void drive_white(int white_space_number) {
+bool drive_white(int white_space_number) {
   switch(white_space_number) {
     case 1: {
-      drive(200,200);
+      drive_straight();
       break;
     }
     case 2: {
-      drive(200,200);
+      drive_straight();
       break;
     }
     case 3: {
-      drive(-100, 200);
+      turn_left();
       break;
     }
     case 4: {
-      drive(200, -100);
+      turn_right();
       break;
     }
     case 5: {
-      drive(200,-100);
+      turn_right();
       break;
     }
-  }
+    case 6: {
+      turn_right();
+      break;
+    }
+    default: {
+      return false; //do pid instead
+      break;
+    }
 
-  // if (millis() < 30*1000000) {
-  //   drive(200, 200);
-  // } else if (millis() < 40 *1000000) {
-  //   drive(-100, 200);
-  // } else if (millis() < 200* 1000000) {
-  //   drive(200, -100);
-  // }
+  }
+  return true;
+}
+void turn_right() {
+  drive(200,-100);
+}
+void turn_left() {
+  drive(-100,200);
+}
+void drive_straight() {
+  drive(200,200);
 }
 
 void bang_control(float NSL, float NSM, float NSR, int loop_time) {
