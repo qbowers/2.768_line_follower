@@ -35,6 +35,9 @@ void setup() {
 
   //Serial Setup
   Serial.begin(9600);
+
+  set_initial_weights();
+  // set_rough_weights();
 }
 
 void loop() {
@@ -56,7 +59,7 @@ void loop() {
   PID_center_control(NSL, NSM, NSR, loop_time);
   // bang_control(NSL, NSM, NSR, loop_time);
 
-  // delay(1);
+  delay(10);
 }
 
 
@@ -100,7 +103,10 @@ void PID_control(float NSL, float NSM, float NSR, int loop_time) {
   drive(spd - steer, spd + steer);
 }
 
-
+//controller coefficients
+float Kp, //0.000037,
+      Kd,//1.2,
+      Ki;
 void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   static float  spd = 255,    //default motor speed ---------- max is 255
                 steer = 0,     //The control action. This is what the controller changes
@@ -162,8 +168,8 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
              white_threshold = 80;
   static float white_time = 0,
                black_time = 0;
-  static float white_time_threshold = 1.2 * 10000000.0/spd,//150.0/spd, //should be lower if we go fast
-               black_time_threshold = 1.0 * 10000000.0/spd;//200.0/spd;
+  static float white_time_threshold = 0.6 * 10000000.0/spd,//150.0/spd, //should be lower if we go fast
+               black_time_threshold = 0.6 * 10000000.0/spd;//200.0/spd;
   static bool is_white = false;
 
   sensorPrint(white_space_number,0,0);
@@ -190,6 +196,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
 
   if (is_white) {
     digitalWrite(PID_LED, HIGH);
+    e_int = 0;
     if (drive_white(white_space_number)) return;
   } else {
     digitalWrite(PID_LED, LOW);
@@ -205,18 +212,19 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   //store error for next time
   e_prev = e;
 
-
-  //controller coefficients
-  static float  Kp = 1.2, //0.000037,
-                Kd = 0.8,//1.2,
-                Ki = 0.0001;
-
   //output
   // steer = Kp*e*abs(e)*abs(e) + Kd*e_deriv + Ki*e_int;
   steer = Kp*e + Kd*e_deriv + Ki*e_int; //in the range -500, 500
 
   // sensorPrint(e, steer, 0);
   static int spd_2 = spd;
+  if (abs(Ki*e_int) > 200) {
+    spd_2 = spd - (steer) / 4.0;
+  } else {
+    spd_2 = spd;
+  }
+
+
   if (steer > 0) {
     drive(spd_2 - steer, spd_2);
   } else {
@@ -227,23 +235,35 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
     drive(spd, spd);
   }
 }
-
+void set_initial_weights() {
+  Kp = 0.8, //0.000037,
+  Kd = 1.0,//1.2,
+  Ki = 0.0003;
+}
+void set_smooth_weights() {
+  Kp = 0.4;
+  Kd = 0.4;
+  Ki = 0;
+}
+void set_rough_weights() {
+  Kp = 0.25;
+  Kd = 0;
+  Ki = 0.0000001;
+}
 bool drive_white(int white_space_number) {
-  switch(white_space_number) {
-    case 1: {
-      drive_straight();
-      break;
-    }
+  switch(white_space_number+1) {
     case 2: {
       drive_straight();
+      set_smooth_weights();
       break;
     }
     case 3: {
-      turn_left();
+      drive_straight();
+      set_initial_weights();
       break;
     }
     case 4: {
-      turn_right();
+      turn_left();
       break;
     }
     case 5: {
@@ -251,11 +271,17 @@ bool drive_white(int white_space_number) {
       break;
     }
     case 6: {
-      turn_right();
+      turn_left();
+      set_rough_weights();
+      break;
+    }
+    case 7: {
+      turn_left();
+      set_rough_weights();
       break;
     }
     default: {
-      return false; //do pid instead
+      turn_left(); //do pid instead
       break;
     }
 
@@ -263,13 +289,13 @@ bool drive_white(int white_space_number) {
   return true;
 }
 void turn_right() {
-  drive(200,-100);
+  drive(255,-100);
 }
 void turn_left() {
-  drive(-100,200);
+  drive(-100,255);
 }
 void drive_straight() {
-  drive(200,200);
+  drive(255,255);
 }
 
 void bang_control(float NSL, float NSM, float NSR, int loop_time) {
