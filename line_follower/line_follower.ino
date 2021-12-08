@@ -168,8 +168,8 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
              white_threshold = 80;
   static float white_time = 0,
                black_time = 0;
-  static float white_time_threshold = 0.6 * 10000000.0/spd,//150.0/spd, //should be lower if we go fast
-               black_time_threshold = 0.6 * 10000000.0/spd;//200.0/spd;
+  static float white_time_threshold = 0.3 * 10000000.0/spd,//150.0/spd, //should be lower if we go fast
+               black_time_threshold = 0.3 * 10000000.0/spd;//200.0/spd;
   static bool is_white = false;
 
   sensorPrint(white_space_number,0,0);
@@ -219,7 +219,7 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   // sensorPrint(e, steer, 0);
   static int spd_2 = spd;
   if (abs(Ki*e_int) > 200) {
-    spd_2 = spd - (steer) / 4.0;
+    spd_2 = spd - (steer) / 3.0;
   } else {
     spd_2 = spd;
   }
@@ -236,9 +236,9 @@ void PID_center_control(float NSL, float NSM, float NSR, int loop_time) {
   }
 }
 void set_initial_weights() {
-  Kp = 0.8, //0.000037,
-  Kd = 1.0,//1.2,
-  Ki = 0.0003;
+  Kp = 0.6; //0.8
+  Kd = 0.8; //1.0
+  Ki = 0.0006; //0.0003
 }
 void set_smooth_weights() {
   Kp = 0.4;
